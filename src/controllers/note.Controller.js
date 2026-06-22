@@ -9,7 +9,9 @@ exports.createNote = async (req, res) => {
       title,
       content,
       // If collectionId is empty or not provided, it defaults to null (Uncategorized)
-      collectionId: collectionId || null
+      collectionId: collectionId || null,
+      // Bind the note to the authenticated user
+      userId: req.user._id
     });
 
     const savedNote = await newNote.save();
@@ -22,10 +24,10 @@ exports.createNote = async (req, res) => {
 // READ notes (Fetch all, or filter by collection)
 exports.getNotes = async (req, res) => {
   try {
-    // Check if the frontend is asking for a specific folder's notes via query
-    // e.g., /api/notes?collectionId=64f1a... or /api/notes?collectionId=null
     const { collectionId } = req.query;
-    let filter = {};
+
+    // Always restrict the baseline query to the logged-in user's ID
+    let filter = { userId: req.user._id };
 
     if (collectionId !== undefined) {
       // Handle the string 'null' sent from frontend query params
@@ -43,13 +45,14 @@ exports.getNotes = async (req, res) => {
 // UPDATE a note
 exports.updateNote = async (req, res) => {
   try {
-    const updatedNote = await Note.findByIdAndUpdate(
-      req.params.id,
+    // findOneAndUpdate ensures we match BOTH the note ID and the user's ID
+    const updatedNote = await Note.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
       { $set: req.body }, // Allows updating title, content, OR moving it to a new collectionId
       { new: true, runValidators: true }
     );
 
-    if (!updatedNote) return res.status(404).json({ message: 'Note not found' });
+    if (!updatedNote) return res.status(404).json({ message: 'Note not found or unauthorized' });
     res.status(200).json(updatedNote);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -59,9 +62,10 @@ exports.updateNote = async (req, res) => {
 // DELETE a note
 exports.deleteNote = async (req, res) => {
   try {
-    const deletedNote = await Note.findByIdAndDelete(req.params.id);
+    // findOneAndDelete prevents deleting notes that belong to someone else
+    const deletedNote = await Note.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
 
-    if (!deletedNote) return res.status(404).json({ message: 'Note not found' });
+    if (!deletedNote) return res.status(404).json({ message: 'Note not found or unauthorized' });
     res.status(200).json({ message: 'Note deleted successfully.' });
   } catch (error) {
     res.status(500).json({ message: error.message });

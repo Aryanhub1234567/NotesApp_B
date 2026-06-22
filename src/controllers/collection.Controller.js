@@ -4,7 +4,10 @@ const Note = require('../models/note.Model'); // Required to update notes when a
 // CREATE a new collection
 exports.createCollection = async (req, res) => {
   try {
-    const newCollection = new Collection({ name: req.body.name });
+    const newCollection = new Collection({
+      name: req.body.name,
+      userId: req.user._id // Bind the collection to the authenticated user
+    });
     const savedCollection = await newCollection.save();
     res.status(201).json(savedCollection);
   } catch (error) {
@@ -19,8 +22,8 @@ exports.createCollection = async (req, res) => {
 // READ all collections
 exports.getCollections = async (req, res) => {
   try {
-    // Sort collections by newest first
-    const collections = await Collection.find().sort({ createdAt: -1 });
+    // Restrict the fetch strictly to collections owned by this user
+    const collections = await Collection.find({ userId: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(collections);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -30,13 +33,14 @@ exports.getCollections = async (req, res) => {
 // UPDATE a collection (Rename)
 exports.updateCollection = async (req, res) => {
   try {
-    const updatedCollection = await Collection.findByIdAndUpdate(
-      req.params.id,
+    // findOneAndUpdate ensures we match BOTH the collection ID and the user ID
+    const updatedCollection = await Collection.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
       { name: req.body.name },
       { new: true, runValidators: true } // new: true returns the updated document
     );
 
-    if (!updatedCollection) return res.status(404).json({ message: 'Collection not found' });
+    if (!updatedCollection) return res.status(404).json({ message: 'Collection not found or unauthorized' });
     res.status(200).json(updatedCollection);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -47,16 +51,19 @@ exports.updateCollection = async (req, res) => {
 exports.deleteCollection = async (req, res) => {
   try {
     const collectionId = req.params.id;
-    const collection = await Collection.findById(collectionId);
 
-    if (!collection) return res.status(404).json({ message: 'Collection not found' });
+    // 1. Verify the collection actually belongs to this user before trying to delete it
+    const collection = await Collection.findOne({ _id: collectionId, userId: req.user._id });
+    if (!collection) return res.status(404).json({ message: 'Collection not found or unauthorized' });
 
-    // UX decision: When deleting a folder, we don't delete the user's notes.
-    // Instead, we move all notes inside this folder to "Uncategorized" (collectionId = null)
-    await Note.updateMany({ collectionId: collectionId }, { $set: { collectionId: null } });
+    // 2. Safely move ONLY this specific user's notes out of the deleted folder
+    await Note.updateMany(
+      { collectionId: collectionId, userId: req.user._id },
+      { $set: { collectionId: null } }
+    );
 
-    // Delete the actual collection
-    await Collection.findByIdAndDelete(collectionId);
+    // 3. Delete the actual collection
+    await Collection.findOneAndDelete({ _id: collectionId, userId: req.user._id });
 
     res.status(200).json({ message: 'Collection deleted and notes moved to Uncategorized.' });
   } catch (error) {

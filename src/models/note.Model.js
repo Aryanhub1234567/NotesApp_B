@@ -12,11 +12,16 @@ const NoteSchema = new mongoose.Schema(
       required: [true, 'A note must have content'],
     },
     // Reference to the Collection model
-    // We set required to false so users can optionally create "Uncategorized" notes
     collectionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Collection',
       default: null,
+    },
+    // Foreign key linking the note to its owner
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'A note must belong to an authenticated user'],
     },
   },
   {
@@ -25,8 +30,8 @@ const NoteSchema = new mongoose.Schema(
   }
 );
 
-// Add an index on collectionId for faster queries when filtering notes by folder
-NoteSchema.index({ collectionId: 1 });
+// Compound index for faster queries when filtering a specific user's notes by folder
+NoteSchema.index({ userId: 1, collectionId: 1 });
 
 const NoteModel = mongoose.model('Note', NoteSchema);
-module.exports = NoteModel
+module.exports = NoteModel;
