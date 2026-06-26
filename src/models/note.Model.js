@@ -23,6 +23,11 @@ const NoteSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'A note must belong to an authenticated user'],
     },
+    // This will store the ImageKit URL
+    attachments: {
+      type: String,
+    },
+
   },
   {
     // Automatically creates 'createdAt' and 'updatedAt' fields
