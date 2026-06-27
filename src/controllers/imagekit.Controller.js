@@ -1,4 +1,6 @@
 // imagekit.Controller.js
+const dotenv = require('dotenv');
+dotenv.config();
 const ImageKit = require('imagekit');
 
 // Initialize ImageKit with your environment variables
