@@ -3,13 +3,14 @@ const Note = require('../models/note.Model');
 // CREATE a new note
 exports.createNote = async (req, res) => {
   try {
-    const { title, content, collectionId } = req.body;
+    const { title, content, collectionId, attachments } = req.body;
 
     const newNote = new Note({
       title,
       content,
       // If collectionId is empty or not provided, it defaults to null (Uncategorized)
       collectionId: collectionId || null,
+      attachments,
       // Bind the note to the authenticated user
       userId: req.user._id
     });
